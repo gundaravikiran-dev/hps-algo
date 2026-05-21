@@ -1,0 +1,22 @@
+kite_data:
+  exchange: NSE
+  interval: day
+  history_days: 1200
+  output_path: data/nse_daily_candles.csv
+  max_symbols: 3000
+  pause_seconds: 0.35
+  exclude_tradingsymbol_suffixes:
+    - "-BE"
+    - "-BZ"
+    - "-SM"
+    - "-ST"
+    - "-SZ"
+    - "-GB"
+    - "-GS"
+  exclude_symbol_contains:
+    - "-"
+  exclude_name_contains:
+    - ETF
+    - INAV
+    - BEES
+    - GILT

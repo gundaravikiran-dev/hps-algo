@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>HPS-Algo</title>
+    <style>
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        background: #f3f6f8;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+      }
+
+      .login-view {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        align-content: center;
+        gap: 12px;
+        padding: 24px;
+      }
+
+      #primaryLoginButton {
+        min-height: 44px;
+        min-width: 180px;
+        border: 0;
+        border-radius: 6px;
+        padding: 0 22px;
+        background: #0f766e;
+        color: #ffffff;
+        cursor: pointer;
+        font: inherit;
+        font-weight: 800;
+      }
+    </style>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main id="setupView" class="setup-view">
+      <section class="setup-panel">
+        <div>
+          <p class="eyebrow">Kite Setup</p>
+          <h1>Connect HPS-Algo</h1>
+        </div>
+        <div class="form-grid">
+          <label for="apiKeyInput">API Key</label>
+          <input id="apiKeyInput" placeholder="Enter Kite API key" autocomplete="off" />
+          <label for="apiSecretInput">API Secret</label>
+          <input
+            id="apiSecretInput"
+            placeholder="Enter Kite API secret"
+            type="password"
+            autocomplete="off"
+          />
+          <label for="redirectUrlInput">Redirect URL</label>
+          <input id="redirectUrlInput" value="http://127.0.0.1:8000/kite/callback" readonly />
+        </div>
+        <div class="setup-actions">
+          <button id="saveSetupButton" type="button">Save</button>
+        </div>
+        <p id="setupMessage" class="setup-message">Add this redirect URL in Kite Developer Console.</p>
+      </section>
+    </main>
+
+    <main id="loginView" class="login-view">
+      <div class="login-actions">
+        <button id="primaryLoginButton" type="button" title="Login to Zerodha Kite">Login</button>
+        <button id="quitLoginButton" class="secondary-button" type="button">Quit App</button>
+      </div>
+      <p id="loginMessage" class="login-copy"></p>
+    </main>
+
+    <main id="appView" class="strategy-view" hidden>
+      <header class="strategy-header">
+        <div>
+          <p class="eyebrow">HPS-Algo</p>
+          <h1>Strategy Page</h1>
+        </div>
+        <div class="strategy-actions">
+          <button id="strategyNameButton" class="secondary-button" type="button">
+            Strategy
+          </button>
+          <button id="athAlgoButton" class="secondary-button" type="button">
+            ATH-Algo
+          </button>
+          <button id="quitStrategyButton" class="secondary-button" type="button">
+            Quit App
+          </button>
+        </div>
+      </header>
+      <section id="strategyContent" class="strategy-content"></section>
+      <section class="result-panel">
+        <div class="result-header">
+          <h2>Stocks Above 200 EMA</h2>
+          <div class="result-actions">
+            <a class="export-button" href="/api/strategy/hps-algo/export.csv">CSV</a>
+            <a class="export-button" href="/api/strategy/hps-algo/export.xls">Excel</a>
+            <strong id="resultCount">-</strong>
+          </div>
+        </div>
+        <p id="strategyMessage" class="message">Click HPS-Algo to run the strategy.</p>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Stock</th>
+                <th>LTP</th>
+                <th>EMA 10</th>
+                <th>EMA 20</th>
+                <th>EMA 200</th>
+                <th>RSI 14</th>
+                <th>Condition</th>
+                <th>Entry Zone</th>
+                <th>% Above EMA10</th>
+                <th>% Above EMA20</th>
+                <th>High Ref</th>
+                <th>High</th>
+                <th>% Below High</th>
+              </tr>
+            </thead>
+            <tbody id="strategyRows">
+              <tr>
+                <td colspan="13">No results yet.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+    <script src="/static/app.js"></script>
+  </body>
+</html>

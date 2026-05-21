@@ -1,0 +1,20 @@
+strategy:
+  name: hps-algo
+  symbol: RELIANCE
+  exchange: NSE
+  interval: 5minute
+  product: MIS
+  quantity: 1
+  dry_run: true
+  order_type: MARKET
+
+risk:
+  max_trades_per_day: 3
+  stop_loss_pct: 0.5
+  target_pct: 1.0
+  max_order_quantity: 10
+  allowed_trading_start: "09:20"
+  allowed_trading_end: "15:10"
+
+parameters:
+  description: "Waiting for new strategy rules"
