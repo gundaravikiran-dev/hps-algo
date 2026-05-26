@@ -8,7 +8,7 @@ from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse, Response
+from fastapi.responses import HTMLResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -28,8 +28,10 @@ from hps_algo.kite_client import (
 from hps_algo.runtime_paths import config_path, credentials_env_path, state_root, ui_assets_dir
 from hps_algo.settings import load_config
 from hps_algo.strategies.ath_algo import AthAlgoStrategy
+from hps_algo.strategies.ema_algo import EmaStrategy
 from hps_algo.strategies.hps_algo import find_kite_stocks_ltp_above_200_ema
 
+ASSET_VERSION = "ema-cross-20260525-2"
 STATE_ROOT = state_root()
 CONFIG_PATH = config_path("strategy.yaml")
 DATA_CONFIG_PATH = config_path("data.yaml")
@@ -50,8 +52,12 @@ class KiteCredentialsRequest(BaseModel):
 
 
 @app.get("/")
-def index() -> FileResponse:
-    return FileResponse(UI_DIR / "templates" / "index.html")
+def index() -> HTMLResponse:
+    template = (UI_DIR / "templates" / "index.html").read_text(encoding="utf-8")
+    return HTMLResponse(
+        template.replace("{{ asset_version }}", ASSET_VERSION),
+        headers={"Cache-Control": "no-store"},
+    )
 
 
 @app.get("/api/config")
@@ -177,6 +183,24 @@ def run_ath_algo_strategy() -> dict:
     }
 
 
+@app.post("/api/strategy/ema/run")
+def run_ema_strategy() -> dict:
+    data_config = load_kite_data_config(DATA_CONFIG_PATH)
+    strategy = EmaStrategy()
+    try:
+        results = strategy.run(data_config)
+    except RuntimeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "count": len(results),
+        "source": "Kite API: daily LTP above EMA200",
+        "results": [item.to_dict() for item in results],
+    }
+
+
 @app.get("/api/strategy/hps-algo/export.csv")
 def export_hps_algo_csv() -> Response:
     payload = run_hps_algo_strategy()
@@ -213,12 +237,14 @@ def _strategy_results_to_csv(results: list[dict]) -> str:
         "ltp",
         "ema_10",
         "ema_20",
+        "ema_50",
         "ema_200",
         "rsi_14",
         "condition",
         "entry_zone",
         "above_ema_10_pct",
         "above_ema_20_pct",
+        "above_ema_50_pct",
         "high_reference",
         "high_price",
         "below_high_pct",

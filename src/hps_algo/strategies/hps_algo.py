@@ -20,12 +20,14 @@ class AboveEmaResult:
     ltp: float
     ema_10: float
     ema_20: float
+    ema_50: float
     ema_200: float
     rsi_14: float
     condition: str
     entry_zone: str
     above_ema_10_pct: float
     above_ema_20_pct: float
+    above_ema_50_pct: float
     high_reference: str
     high_price: float
     below_high_pct: float
@@ -66,16 +68,19 @@ def find_stocks_above_200_ema(path: str | Path, ema_period: int = 200) -> list[A
         data["ema_200"] = data["close"].ewm(span=ema_period, adjust=False).mean()
         data["ema_10"] = data["close"].ewm(span=10, adjust=False).mean()
         data["ema_20"] = data["close"].ewm(span=20, adjust=False).mean()
+        data["ema_50"] = data["close"].ewm(span=50, adjust=False).mean()
         latest = data.iloc[-1]
         close = float(latest["close"])
         ema_10 = float(latest["ema_10"])
         ema_20 = float(latest["ema_20"])
+        ema_50 = float(latest["ema_50"])
         ema_200 = float(latest["ema_200"])
 
         condition = _ema_10_20_condition(data)
         entry_zone = _entry_zone_condition(close, ema_10, ema_20)
         above_ema_10_pct = _pct_above(close, ema_10)
         above_ema_20_pct = _pct_above(close, ema_20)
+        above_ema_50_pct = _pct_above(close, ema_50)
         high_condition = _high_distance_condition(close, data)
         rsi_14 = float(_rsi(data["close"], 14).iloc[-1])
         if (
@@ -93,12 +98,14 @@ def find_stocks_above_200_ema(path: str | Path, ema_period: int = 200) -> list[A
                     ltp=round(close, 2),
                     ema_10=round(ema_10, 2),
                     ema_20=round(ema_20, 2),
+                    ema_50=round(ema_50, 2),
                     ema_200=round(ema_200, 2),
                     rsi_14=round(rsi_14, 2),
                     condition=condition,
                     entry_zone=entry_zone,
                     above_ema_10_pct=round(above_ema_10_pct, 2),
                     above_ema_20_pct=round(above_ema_20_pct, 2),
+                    above_ema_50_pct=round(above_ema_50_pct, 2),
                     high_reference=high_condition[0],
                     high_price=round(high_condition[1], 2),
                     below_high_pct=round(high_condition[2], 2),
@@ -122,7 +129,10 @@ def find_kite_stocks_ltp_above_200_ema(
 
     to_date = date.today()
     from_date = to_date - timedelta(days=max(config.history_days, ema_period * 6))
-    ema_by_symbol: dict[str, tuple[float, float, float, float, str, tuple[str, float, float]]] = {}
+    ema_by_symbol: dict[
+        str,
+        tuple[float, float, float, float, float, str, tuple[str, float, float]],
+    ] = {}
 
     for instrument in selected:
         symbol = str(instrument["tradingsymbol"])
@@ -140,6 +150,7 @@ def find_kite_stocks_ltp_above_200_ema(
         )
         data["ema_10"] = data["close"].ewm(span=10, adjust=False).mean()
         data["ema_20"] = data["close"].ewm(span=20, adjust=False).mean()
+        data["ema_50"] = data["close"].ewm(span=50, adjust=False).mean()
         data["ema_200"] = data["close"].ewm(span=ema_period, adjust=False).mean()
         data["rsi_14"] = _rsi(data["close"], 14)
         condition = _ema_10_20_condition(data)
@@ -161,6 +172,7 @@ def find_kite_stocks_ltp_above_200_ema(
         ema_by_symbol[symbol] = (
             float(latest["ema_10"]),
             float(latest["ema_20"]),
+            float(latest["ema_50"]),
             float(latest["ema_200"]),
             rsi_14,
             condition,
@@ -180,6 +192,7 @@ def find_kite_stocks_ltp_above_200_ema(
     for symbol, (
         ema_10,
         ema_20,
+        ema_50,
         ema_200,
         rsi_14,
         condition,
@@ -192,6 +205,7 @@ def find_kite_stocks_ltp_above_200_ema(
         entry_zone = _entry_zone_condition(ltp, ema_10, ema_20)
         above_ema_10_pct = _pct_above(ltp, ema_10)
         above_ema_20_pct = _pct_above(ltp, ema_20)
+        above_ema_50_pct = _pct_above(ltp, ema_50)
         if ltp > ema_200 and ema_10 > ema_200 and ema_20 > ema_200 and entry_zone:
             results.append(
                 AboveEmaResult(
@@ -199,12 +213,14 @@ def find_kite_stocks_ltp_above_200_ema(
                     ltp=round(ltp, 2),
                     ema_10=round(ema_10, 2),
                     ema_20=round(ema_20, 2),
+                    ema_50=round(ema_50, 2),
                     ema_200=round(ema_200, 2),
                     rsi_14=round(rsi_14, 2),
                     condition=condition,
                     entry_zone=entry_zone,
                     above_ema_10_pct=round(above_ema_10_pct, 2),
                     above_ema_20_pct=round(above_ema_20_pct, 2),
+                    above_ema_50_pct=round(above_ema_50_pct, 2),
                     high_reference=high_condition[0],
                     high_price=round(high_condition[1], 2),
                     below_high_pct=round(high_condition[2], 2),

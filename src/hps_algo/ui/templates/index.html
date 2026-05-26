@@ -40,7 +40,7 @@
         font-weight: 800;
       }
     </style>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v={{ asset_version }}" />
   </head>
   <body>
     <main id="setupView" class="setup-view">
@@ -63,7 +63,7 @@
           <input id="redirectUrlInput" value="http://127.0.0.1:8000/kite/callback" readonly />
         </div>
         <div class="setup-actions">
-          <button id="saveSetupButton" type="button">Save</button>
+        <button id="saveSetupButton" data-action="save-setup" type="button">Save</button>
         </div>
         <p id="setupMessage" class="setup-message">Add this redirect URL in Kite Developer Console.</p>
       </section>
@@ -71,8 +71,22 @@
 
     <main id="loginView" class="login-view">
       <div class="login-actions">
-        <button id="primaryLoginButton" type="button" title="Login to Zerodha Kite">Login</button>
-        <button id="quitLoginButton" class="secondary-button" type="button">Quit App</button>
+        <button
+          id="primaryLoginButton"
+          data-action="open-kite-login"
+          type="button"
+          title="Login to Zerodha Kite"
+        >
+          Login
+        </button>
+        <button
+          id="quitLoginButton"
+          class="secondary-button"
+          data-action="quit-login"
+          type="button"
+        >
+          Quit App
+        </button>
       </div>
       <p id="loginMessage" class="login-copy"></p>
     </main>
@@ -84,13 +98,36 @@
           <h1>Strategy Page</h1>
         </div>
         <div class="strategy-actions">
-          <button id="strategyNameButton" class="secondary-button" type="button">
+          <button
+            id="strategyNameButton"
+            class="secondary-button"
+            data-action="run-hps"
+            type="button"
+          >
             Strategy
           </button>
-          <button id="athAlgoButton" class="secondary-button" type="button">
+          <button
+            id="athAlgoButton"
+            class="secondary-button"
+            data-action="run-ath"
+            type="button"
+          >
             ATH-Algo
           </button>
-          <button id="quitStrategyButton" class="secondary-button" type="button">
+          <button
+            id="emaButton"
+            class="secondary-button"
+            data-action="run-ema"
+            type="button"
+          >
+            EMA
+          </button>
+          <button
+            id="quitStrategyButton"
+            class="secondary-button"
+            data-action="quit-strategy"
+            type="button"
+          >
             Quit App
           </button>
         </div>
@@ -114,12 +151,14 @@
                 <th>LTP</th>
                 <th>EMA 10</th>
                 <th>EMA 20</th>
+                <th>EMA 50</th>
                 <th>EMA 200</th>
                 <th>RSI 14</th>
                 <th>Condition</th>
                 <th>Entry Zone</th>
                 <th>% Above EMA10</th>
                 <th>% Above EMA20</th>
+                <th>% Above EMA50</th>
                 <th>High Ref</th>
                 <th>High</th>
                 <th>% Below High</th>
@@ -127,13 +166,13 @@
             </thead>
             <tbody id="strategyRows">
               <tr>
-                <td colspan="13">No results yet.</td>
+                <td colspan="15">No results yet.</td>
               </tr>
             </tbody>
           </table>
         </div>
       </section>
     </main>
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v={{ asset_version }}"></script>
   </body>
 </html>

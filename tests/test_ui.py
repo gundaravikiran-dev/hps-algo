@@ -11,6 +11,16 @@ def test_ui_config_endpoint() -> None:
     assert response.json()["strategy"]["symbol"] == "RELIANCE"
 
 
+def test_ui_index_uses_versioned_static_assets() -> None:
+    client = TestClient(app)
+    response = client.get("/")
+
+    assert response.status_code == 200
+    assert "app.js?v=ema-cross-20260525-2" in response.text
+    assert 'data-action="run-ema"' in response.text
+    assert response.headers["cache-control"] == "no-store"
+
+
 def test_ui_kite_data_config_endpoint() -> None:
     client = TestClient(app)
     response = client.get("/api/kite-data-config")
@@ -74,6 +84,13 @@ def test_ui_hps_algo_export_csv() -> None:
 def test_ui_ath_algo_endpoint() -> None:
     client = TestClient(app)
     response = client.post("/api/strategy/ath-algo/run")
+
+    assert response.status_code in {200, 400}
+
+
+def test_ui_ema_algo_endpoint() -> None:
+    client = TestClient(app)
+    response = client.post("/api/strategy/ema/run")
 
     assert response.status_code in {200, 400}
 
