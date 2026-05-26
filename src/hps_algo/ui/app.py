@@ -310,7 +310,14 @@ def _stop_process() -> None:
 
 
 def main() -> None:
-    uvicorn.run("hps_algo.ui.app:app", host="127.0.0.1", port=8000, reload=False)
+    uvicorn.run(
+        "hps_algo.ui.app:app",
+        host="127.0.0.1",
+        port=8000,
+        reload=False,
+        access_log=False,
+        log_config=None,
+    )
 
 
 if __name__ == "__main__":
