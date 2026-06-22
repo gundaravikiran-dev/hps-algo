@@ -123,6 +123,22 @@
             EMA
           </button>
           <button
+            id="emaPreCrossButton"
+            class="secondary-button"
+            data-action="run-ema-pre-cross"
+            type="button"
+          >
+            EMA_PRE_CROSS
+          </button>
+          <button
+            id="emaPreCross10Button"
+            class="secondary-button"
+            data-action="run-ema-pre-cross-10"
+            type="button"
+          >
+            EMA_PRE_CROSS_10
+          </button>
+          <button
             id="quitStrategyButton"
             class="secondary-button"
             data-action="quit-strategy"
@@ -133,12 +149,39 @@
         </div>
       </header>
       <section id="strategyContent" class="strategy-content"></section>
+      <section class="backtest-panel" aria-label="Backtest controls">
+        <div>
+          <h2>Backtest</h2>
+          <p class="message">Select a strategy and date to check historical matching stocks.</p>
+        </div>
+        <div class="backtest-controls">
+          <label for="backtestStrategyInput">Strategy</label>
+          <select id="backtestStrategyInput">
+            <option value="hps-algo">HPS-Algo</option>
+            <option value="ath-algo">ATH-Algo</option>
+            <option value="ema">EMA</option>
+            <option value="ema-pre-cross">EMA_PRE_CROSS</option>
+            <option value="ema-pre-cross-10">EMA_PRE_CROSS_10</option>
+          </select>
+          <label for="backtestDateInput">Date</label>
+          <input id="backtestDateInput" type="date" />
+          <button id="runBacktestButton" data-action="run-backtest" type="button">Run Backtest</button>
+        </div>
+      </section>
       <section class="result-panel">
         <div class="result-header">
           <h2>Stocks Above 200 EMA</h2>
           <div class="result-actions">
             <a class="export-button" href="/api/strategy/hps-algo/export.csv">CSV</a>
             <a class="export-button" href="/api/strategy/hps-algo/export.xls">Excel</a>
+            <button
+              id="exportTxtButton"
+              class="export-button"
+              data-action="export-txt"
+              type="button"
+            >
+              TXT
+            </button>
             <strong id="resultCount">-</strong>
           </div>
         </div>

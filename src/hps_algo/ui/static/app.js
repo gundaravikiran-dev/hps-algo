@@ -11,12 +11,19 @@ const loginMessage = document.querySelector("#loginMessage");
 const strategyNameButton = document.querySelector("#strategyNameButton");
 const athAlgoButton = document.querySelector("#athAlgoButton");
 const emaButton = document.querySelector("#emaButton");
+const emaPreCrossButton = document.querySelector("#emaPreCrossButton");
+const emaPreCross10Button = document.querySelector("#emaPreCross10Button");
 const quitStrategyButton = document.querySelector("#quitStrategyButton");
+const backtestStrategyInput = document.querySelector("#backtestStrategyInput");
+const backtestDateInput = document.querySelector("#backtestDateInput");
+const runBacktestButton = document.querySelector("#runBacktestButton");
 const strategyMessage = document.querySelector("#strategyMessage");
 const strategyRows = document.querySelector("#strategyRows");
 const resultCount = document.querySelector("#resultCount");
+let latestStrategyResults = [];
 
 async function loadApp() {
+  setupBacktestDate();
   const showApp = new URLSearchParams(window.location.search).get("app") === "1";
   const [statusResponse, configResponse] = await Promise.all([
     fetch("/api/kite/status"),
@@ -36,6 +43,14 @@ async function loadApp() {
   setupView.hidden = true;
   loginView.hidden = false;
   appView.hidden = true;
+}
+
+function setupBacktestDate() {
+  const now = new Date();
+  const timezoneOffsetMs = now.getTimezoneOffset() * 60 * 1000;
+  const today = new Date(now.getTime() - timezoneOffsetMs).toISOString().slice(0, 10);
+  backtestDateInput.max = today;
+  backtestDateInput.value = today;
 }
 
 function formatStrategyName(value) {
@@ -160,9 +175,55 @@ function handlePageClick(event) {
     runAthAlgoStrategy();
   } else if (action === "run-ema") {
     runEmaStrategy();
+  } else if (action === "run-ema-pre-cross") {
+    runEmaPreCrossStrategy();
+  } else if (action === "run-ema-pre-cross-10") {
+    runEmaPreCross10Strategy();
+  } else if (action === "run-backtest") {
+    runBacktest();
+  } else if (action === "export-txt") {
+    exportStockNamesTxt();
   } else if (action === "quit-strategy") {
     quitApp(quitStrategyButton);
   }
+}
+
+function runBacktest() {
+  const strategyName = backtestStrategyInput.options[backtestStrategyInput.selectedIndex].text;
+  const backtestDate = backtestDateInput.value;
+  if (!backtestDate) {
+    strategyMessage.textContent = "Select a backtest date.";
+    return;
+  }
+
+  latestStrategyResults = [];
+  resultCount.textContent = "-";
+  strategyRows.innerHTML = '<tr><td colspan="15">Backtest backend is not connected yet.</td></tr>';
+  strategyMessage.textContent = `${strategyName} backtest selected for ${backtestDate}. Backend wiring is next.`;
+  runBacktestButton.textContent = "Run Backtest";
+}
+
+function exportStockNamesTxt() {
+  const symbols = latestStrategyResults
+    .map((item) => String(item.symbol || "").trim())
+    .filter(Boolean);
+
+  if (symbols.length === 0) {
+    strategyMessage.textContent = "Run a strategy first. There are no stock names to export.";
+    return;
+  }
+
+  const text = `${symbols.join("\n")}\n`;
+  const blob = new Blob([text], { type: "text/plain;charset=utf-8" });
+  const downloadUrl = URL.createObjectURL(blob);
+  const downloadLink = document.createElement("a");
+  downloadLink.href = downloadUrl;
+  downloadLink.download = `stock-names-${new Date().toISOString().slice(0, 10)}.txt`;
+  document.body.appendChild(downloadLink);
+  downloadLink.click();
+  downloadLink.remove();
+  URL.revokeObjectURL(downloadUrl);
+  strategyMessage.textContent = `Downloaded ${symbols.length.toLocaleString("en-IN")} stock names.`;
 }
 
 async function runHpsAlgoStrategy() {
@@ -253,7 +314,64 @@ async function runEmaStrategy() {
   }
 }
 
+async function runEmaPreCrossStrategy() {
+  emaPreCrossButton.disabled = true;
+  emaPreCrossButton.textContent = "Running";
+  strategyMessage.textContent = "Running EMA_PRE_CROSS: daily price above EMA200...";
+
+  try {
+    const response = await fetch("/api/strategy/ema-pre-cross/run", {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "EMA_PRE_CROSS strategy run failed");
+    }
+
+    resultCount.textContent = payload.count.toLocaleString("en-IN");
+    renderStrategyRows(payload.results);
+    strategyMessage.textContent = payload.source;
+  } catch (error) {
+    resultCount.textContent = "ERR";
+    strategyRows.innerHTML = '<tr><td colspan="15">Unable to run EMA_PRE_CROSS strategy.</td></tr>';
+    strategyMessage.textContent = error.message;
+  } finally {
+    emaPreCrossButton.disabled = false;
+    emaPreCrossButton.textContent = "EMA_PRE_CROSS";
+  }
+}
+
+async function runEmaPreCross10Strategy() {
+  emaPreCross10Button.disabled = true;
+  emaPreCross10Button.textContent = "Running";
+  strategyMessage.textContent =
+    "Running EMA_PRE_CROSS_10: previous 10+ EMA stack, then EMA10 cross...";
+
+  try {
+    const response = await fetch("/api/strategy/ema-pre-cross-10/run", {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "EMA_PRE_CROSS_10 strategy run failed");
+    }
+
+    resultCount.textContent = payload.count.toLocaleString("en-IN");
+    renderStrategyRows(payload.results);
+    strategyMessage.textContent = payload.source;
+  } catch (error) {
+    resultCount.textContent = "ERR";
+    strategyRows.innerHTML =
+      '<tr><td colspan="15">Unable to run EMA_PRE_CROSS_10 strategy.</td></tr>';
+    strategyMessage.textContent = error.message;
+  } finally {
+    emaPreCross10Button.disabled = false;
+    emaPreCross10Button.textContent = "EMA_PRE_CROSS_10";
+  }
+}
+
 function renderStrategyRows(results) {
+  latestStrategyResults = results;
   strategyRows.innerHTML = "";
   if (results.length === 0) {
     strategyRows.innerHTML = '<tr><td colspan="15">No stocks matched strategy.</td></tr>';

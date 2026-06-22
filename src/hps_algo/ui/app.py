@@ -29,9 +29,10 @@ from hps_algo.runtime_paths import config_path, credentials_env_path, state_root
 from hps_algo.settings import load_config
 from hps_algo.strategies.ath_algo import AthAlgoStrategy
 from hps_algo.strategies.ema_algo import EmaStrategy
+from hps_algo.strategies.ema_pre_cross_algo import EmaPreCross10Strategy, EmaPreCrossStrategy
 from hps_algo.strategies.hps_algo import find_kite_stocks_ltp_above_200_ema
 
-ASSET_VERSION = "ema-cross-20260525-2"
+ASSET_VERSION = "stock-txt-export-20260622-1"
 STATE_ROOT = state_root()
 CONFIG_PATH = config_path("strategy.yaml")
 DATA_CONFIG_PATH = config_path("data.yaml")
@@ -197,6 +198,42 @@ def run_ema_strategy() -> dict:
     return {
         "count": len(results),
         "source": "Kite API: daily LTP above EMA200",
+        "results": [item.to_dict() for item in results],
+    }
+
+
+@app.post("/api/strategy/ema-pre-cross/run")
+def run_ema_pre_cross_strategy() -> dict:
+    data_config = load_kite_data_config(DATA_CONFIG_PATH)
+    strategy = EmaPreCrossStrategy()
+    try:
+        results = strategy.run(data_config)
+    except RuntimeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "count": len(results),
+        "source": "Kite API: EMA_PRE_CROSS daily price above EMA200",
+        "results": [item.to_dict() for item in results],
+    }
+
+
+@app.post("/api/strategy/ema-pre-cross-10/run")
+def run_ema_pre_cross_10_strategy() -> dict:
+    data_config = load_kite_data_config(DATA_CONFIG_PATH)
+    strategy = EmaPreCross10Strategy()
+    try:
+        results = strategy.run(data_config)
+    except RuntimeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "count": len(results),
+        "source": "Kite API: EMA_PRE_CROSS_10 daily price above EMA200 after previous 10+ EMA stack",
         "results": [item.to_dict() for item in results],
     }
 
