@@ -10,6 +10,7 @@ const quitLoginButton = document.querySelector("#quitLoginButton");
 const loginMessage = document.querySelector("#loginMessage");
 const strategyNameButton = document.querySelector("#strategyNameButton");
 const athAlgoButton = document.querySelector("#athAlgoButton");
+const emaButton = document.querySelector("#emaButton");
 const quitStrategyButton = document.querySelector("#quitStrategyButton");
 const strategyMessage = document.querySelector("#strategyMessage");
 const strategyRows = document.querySelector("#strategyRows");
@@ -136,14 +137,33 @@ async function quitApp(button) {
   }
 }
 
-saveSetupButton.addEventListener("click", saveSetup);
-primaryLoginButton.addEventListener("click", openKiteLogin);
-quitLoginButton.addEventListener("click", () => quitApp(quitLoginButton));
-strategyNameButton.addEventListener("click", runHpsAlgoStrategy);
-athAlgoButton.addEventListener("click", runAthAlgoStrategy);
-quitStrategyButton.addEventListener("click", () => quitApp(quitStrategyButton));
+document.addEventListener("click", handlePageClick);
 
 loadApp();
+
+function handlePageClick(event) {
+  const actionElement = event.target.closest("[data-action]");
+  if (!actionElement) {
+    return;
+  }
+
+  const action = actionElement.dataset.action;
+  if (action === "save-setup") {
+    saveSetup();
+  } else if (action === "open-kite-login") {
+    openKiteLogin();
+  } else if (action === "quit-login") {
+    quitApp(quitLoginButton);
+  } else if (action === "run-hps") {
+    runHpsAlgoStrategy();
+  } else if (action === "run-ath") {
+    runAthAlgoStrategy();
+  } else if (action === "run-ema") {
+    runEmaStrategy();
+  } else if (action === "quit-strategy") {
+    quitApp(quitStrategyButton);
+  }
+}
 
 async function runHpsAlgoStrategy() {
   strategyNameButton.disabled = true;
@@ -164,7 +184,7 @@ async function runHpsAlgoStrategy() {
     strategyMessage.textContent = `Source: ${payload.source}`;
   } catch (error) {
     resultCount.textContent = "ERR";
-    strategyRows.innerHTML = '<tr><td colspan="13">Unable to run strategy.</td></tr>';
+    strategyRows.innerHTML = '<tr><td colspan="15">Unable to run strategy.</td></tr>';
     strategyMessage.textContent = error.message;
   } finally {
     strategyNameButton.disabled = false;
@@ -198,7 +218,7 @@ async function runAthAlgoStrategy() {
     strategyMessage.textContent = payload.source;
   } catch (error) {
     resultCount.textContent = "ERR";
-    strategyRows.innerHTML = '<tr><td colspan="13">Unable to run ATH-Algo.</td></tr>';
+    strategyRows.innerHTML = '<tr><td colspan="15">Unable to run ATH-Algo.</td></tr>';
     strategyMessage.textContent = error.message;
   } finally {
     athAlgoButton.disabled = false;
@@ -206,10 +226,37 @@ async function runAthAlgoStrategy() {
   }
 }
 
+async function runEmaStrategy() {
+  emaButton.disabled = true;
+  emaButton.textContent = "Running";
+  strategyMessage.textContent = "Running EMA scanner: daily price above EMA200...";
+
+  try {
+    const response = await fetch("/api/strategy/ema/run", {
+      method: "POST",
+    });
+    const payload = await response.json();
+    if (!response.ok) {
+      throw new Error(payload.detail || "EMA strategy run failed");
+    }
+
+    resultCount.textContent = payload.count.toLocaleString("en-IN");
+    renderStrategyRows(payload.results);
+    strategyMessage.textContent = payload.source;
+  } catch (error) {
+    resultCount.textContent = "ERR";
+    strategyRows.innerHTML = '<tr><td colspan="15">Unable to run EMA strategy.</td></tr>';
+    strategyMessage.textContent = error.message;
+  } finally {
+    emaButton.disabled = false;
+    emaButton.textContent = "EMA";
+  }
+}
+
 function renderStrategyRows(results) {
   strategyRows.innerHTML = "";
   if (results.length === 0) {
-    strategyRows.innerHTML = '<tr><td colspan="13">No stocks matched strategy.</td></tr>';
+    strategyRows.innerHTML = '<tr><td colspan="15">No stocks matched strategy.</td></tr>';
     return;
   }
 
@@ -220,12 +267,14 @@ function renderStrategyRows(results) {
       <td>${formatNumber(item.ltp)}</td>
       <td>${formatNumber(item.ema_10)}</td>
       <td>${formatNumber(item.ema_20)}</td>
+      <td>${formatNumber(item.ema_50)}</td>
       <td>${formatNumber(item.ema_200)}</td>
       <td>${formatNumber(item.rsi_14)}</td>
       <td>${item.condition}</td>
       <td>${item.entry_zone}</td>
       <td>${formatNumber(item.above_ema_10_pct)}%</td>
       <td>${formatNumber(item.above_ema_20_pct)}%</td>
+      <td>${formatNumber(item.above_ema_50_pct)}%</td>
       <td>${item.high_reference}</td>
       <td>${formatNumber(item.high_price)}</td>
       <td>${formatNumber(item.below_high_pct)}%</td>

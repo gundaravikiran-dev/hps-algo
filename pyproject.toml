@@ -25,7 +25,7 @@ dev = [
 ]
 package = [
     "pyinstaller>=6.19.0",
-    "pyobjc-framework-Cocoa>=11.1",
+    "pyobjc-framework-Cocoa>=11.1; sys_platform == 'darwin'",
 ]
 
 [build-system]
