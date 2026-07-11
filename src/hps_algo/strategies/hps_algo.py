@@ -7,17 +7,28 @@ from typing import Any, Protocol
 
 import pandas as pd
 
-from hps_algo.data import KiteDataConfig, filter_nse_equity_instruments
+from hps_algo.data import (
+    KiteDataConfig,
+    fetch_kite_historical_data_cached,
+    filter_nse_equity_instruments,
+    save_kite_instruments_to_store,
+    save_technical_indicator_to_store,
+)
 from hps_algo.kite_client import build_kite
 
 
 REQUIRED_COLUMNS = ("symbol", "date", "open", "high", "low", "close", "volume")
+RSI_THRESHOLD = 60.0
+MIN_LATEST_CANDLE_VOLUME = 1_000_000
 
 
 @dataclass(frozen=True)
 class AboveEmaResult:
     symbol: str
+    stock_name: str
     ltp: float
+    volume: int
+    latest_candle_pct: float
     ema_10: float
     ema_20: float
     ema_50: float
@@ -82,12 +93,14 @@ def find_stocks_above_200_ema(path: str | Path, ema_period: int = 200) -> list[A
         above_ema_20_pct = _pct_above(close, ema_20)
         above_ema_50_pct = _pct_above(close, ema_50)
         high_condition = _high_distance_condition(close, data)
+        volume = int(latest["volume"])
         rsi_14 = float(_rsi(data["close"], 14).iloc[-1])
         if (
             close > ema_200
             and ema_10 > ema_200
             and ema_20 > ema_200
-            and rsi_14 > 63
+            and volume > MIN_LATEST_CANDLE_VOLUME
+            and rsi_14 > RSI_THRESHOLD
             and condition
             and entry_zone
             and high_condition
@@ -95,7 +108,10 @@ def find_stocks_above_200_ema(path: str | Path, ema_period: int = 200) -> list[A
             results.append(
                 AboveEmaResult(
                     symbol=str(symbol),
+                    stock_name=str(symbol),
                     ltp=round(close, 2),
+                    volume=volume,
+                    latest_candle_pct=round(_price_change_pct(float(data.iloc[-2]["close"]), close), 2),
                     ema_10=round(ema_10, 2),
                     ema_20=round(ema_20, 2),
                     ema_50=round(ema_50, 2),
@@ -126,91 +142,110 @@ def find_kite_stocks_ltp_above_200_ema(
     selected = filter_nse_equity_instruments(instruments, config)
     if config.max_symbols:
         selected = selected[: config.max_symbols]
+    save_kite_instruments_to_store(
+        selected,
+        use_local_store=config.use_local_store,
+        store_path=config.store_path,
+    )
 
-    to_date = date.today()
+    to_date = _completed_history_date()
     from_date = to_date - timedelta(days=max(config.history_days, ema_period * 6))
-    ema_by_symbol: dict[
-        str,
-        tuple[float, float, float, float, float, str, tuple[str, float, float]],
-    ] = {}
+    history_by_symbol: dict[str, tuple[str, int, float, pd.DataFrame]] = {}
 
     for instrument in selected:
         symbol = str(instrument["tradingsymbol"])
+        stock_name = str(instrument.get("name") or symbol)
         token = int(instrument["instrument_token"])
-        candles = kite.historical_data(token, from_date, to_date, config.interval)
+        candles = fetch_kite_historical_data_cached(
+            kite,
+            token,
+            from_date,
+            to_date,
+            config.interval,
+            use_local_store=config.use_local_store,
+            store_path=config.store_path,
+        )
         closes = [float(candle["close"]) for candle in candles]
         if len(closes) < ema_period:
             continue
 
-        data = pd.DataFrame(
-            {
-                "close": closes,
-                "high": [float(candle["high"]) for candle in candles],
-            }
+        data = _historical_candle_frame(candles, from_date)
+        _save_completed_indicator_snapshot(
+            token,
+            config.interval,
+            data,
+            ema_period,
+            use_local_store=config.use_local_store,
+            store_path=config.store_path,
         )
-        data["ema_10"] = data["close"].ewm(span=10, adjust=False).mean()
-        data["ema_20"] = data["close"].ewm(span=20, adjust=False).mean()
-        data["ema_50"] = data["close"].ewm(span=50, adjust=False).mean()
-        data["ema_200"] = data["close"].ewm(span=ema_period, adjust=False).mean()
-        data["rsi_14"] = _rsi(data["close"], 14)
-        condition = _ema_10_20_condition(data)
-        if not condition:
+        volume = int(candles[-1].get("volume", 0))
+        if volume <= MIN_LATEST_CANDLE_VOLUME:
             continue
-
-        latest = data.iloc[-1]
-        rsi_14 = float(latest["rsi_14"])
-        if rsi_14 <= 63:
-            continue
-
-        high_condition = _high_distance_condition(float(closes[-1]), data)
-        if require_high_distance:
-            if not high_condition:
-                continue
-        else:
-            high_condition = ("Not Applied", 0.0, 0.0)
-
-        ema_by_symbol[symbol] = (
-            float(latest["ema_10"]),
-            float(latest["ema_20"]),
-            float(latest["ema_50"]),
-            float(latest["ema_200"]),
-            rsi_14,
-            condition,
-            high_condition,
+        history_by_symbol[symbol] = (
+            stock_name,
+            volume,
+            _latest_close_reference(candles),
+            data,
         )
 
-    if not ema_by_symbol:
+    if not history_by_symbol:
         return []
 
     ltp_values: dict[str, dict[str, Any]] = {}
-    instrument_keys = [f"{config.exchange}:{symbol}" for symbol in ema_by_symbol]
+    instrument_keys = [f"{config.exchange}:{symbol}" for symbol in history_by_symbol]
     for batch_start in range(0, len(instrument_keys), 100):
         batch = instrument_keys[batch_start : batch_start + 100]
         ltp_values.update(kite.ltp(batch))
 
     results: list[AboveEmaResult] = []
     for symbol, (
-        ema_10,
-        ema_20,
-        ema_50,
-        ema_200,
-        rsi_14,
-        condition,
-        high_condition,
-    ) in ema_by_symbol.items():
+        stock_name,
+        volume,
+        latest_candle_pct,
+        data,
+    ) in history_by_symbol.items():
         ltp_payload = ltp_values.get(f"{config.exchange}:{symbol}")
         if not ltp_payload:
             continue
         ltp = float(ltp_payload["last_price"])
+        live_data = _with_live_close(data, ltp)
+        live_data["ema_10"] = live_data["close"].ewm(span=10, adjust=False).mean()
+        live_data["ema_20"] = live_data["close"].ewm(span=20, adjust=False).mean()
+        live_data["ema_50"] = live_data["close"].ewm(span=50, adjust=False).mean()
+        live_data["ema_200"] = live_data["close"].ewm(span=ema_period, adjust=False).mean()
+        live_data["rsi_14"] = _rsi(live_data["close"], 14)
+        condition = _ema_10_20_condition(live_data)
+        if not condition:
+            continue
+
+        latest = live_data.iloc[-1]
+        ema_10 = float(latest["ema_10"])
+        ema_20 = float(latest["ema_20"])
+        ema_50 = float(latest["ema_50"])
+        ema_200 = float(latest["ema_200"])
+        rsi_14 = float(latest["rsi_14"])
+        if rsi_14 <= RSI_THRESHOLD:
+            continue
+
+        latest_change_pct = _price_change_pct(latest_candle_pct, ltp)
         entry_zone = _entry_zone_condition(ltp, ema_10, ema_20)
         above_ema_10_pct = _pct_above(ltp, ema_10)
         above_ema_20_pct = _pct_above(ltp, ema_20)
         above_ema_50_pct = _pct_above(ltp, ema_50)
-        if ltp > ema_200 and ema_10 > ema_200 and ema_20 > ema_200 and entry_zone:
+        high_condition = _high_distance_condition(ltp, live_data)
+        if require_high_distance:
+            if not high_condition:
+                continue
+        else:
+            high_condition = ("Not Applied", 0.0, 0.0)
+        if _price_and_short_emas_are_above_trend(ltp, ema_10, ema_20, ema_200) and entry_zone:
             results.append(
                 AboveEmaResult(
                     symbol=symbol,
+                    stock_name=stock_name,
                     ltp=round(ltp, 2),
+                    volume=volume,
+                    latest_candle_pct=round(latest_change_pct, 2),
                     ema_10=round(ema_10, 2),
                     ema_20=round(ema_20, 2),
                     ema_50=round(ema_50, 2),
@@ -252,15 +287,16 @@ def _entry_zone_condition(
     price: float,
     ema_10: float,
     ema_20: float,
+    min_above_pct: float = 0.0,
     max_above_pct: float = 3.0,
 ) -> str | None:
     matches = []
     above_ema_10_pct = _pct_above(price, ema_10)
     above_ema_20_pct = _pct_above(price, ema_20)
 
-    if 0 < above_ema_10_pct <= max_above_pct:
+    if min_above_pct <= above_ema_10_pct <= max_above_pct:
         matches.append("Near EMA10")
-    if 0 < above_ema_20_pct <= max_above_pct:
+    if min_above_pct <= above_ema_20_pct <= max_above_pct:
         matches.append("Near EMA20")
 
     return ", ".join(matches) if matches else None
@@ -268,6 +304,114 @@ def _entry_zone_condition(
 
 def _pct_above(price: float, reference: float) -> float:
     return ((price - reference) / reference) * 100
+
+
+def _price_and_short_emas_are_above_trend(
+    price: float,
+    ema_10: float,
+    ema_20: float,
+    ema_200: float,
+) -> bool:
+    return (
+        price > ema_200
+        and (price > ema_10 or price > ema_20)
+        and ema_10 > ema_200
+        and ema_20 > ema_200
+    )
+
+
+def _with_live_close(data: pd.DataFrame, ltp: float) -> pd.DataFrame:
+    live_data = data.copy()
+    live_data.loc[len(live_data)] = {
+        "date": date.today(),
+        "close": ltp,
+        "high": max(ltp, float(data["high"].iloc[-1]) if "high" in data.columns and not data.empty else ltp),
+    }
+    return live_data
+
+
+def _historical_candle_frame(candles: list[dict[str, Any]], start_date: date) -> pd.DataFrame:
+    rows = []
+    for index, candle in enumerate(candles):
+        candle_date = _candle_date(candle.get("date")) or start_date + timedelta(days=index)
+        close = float(candle["close"])
+        rows.append(
+            {
+                "date": candle_date,
+                "close": close,
+                "high": float(candle.get("high", close)),
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+def _save_completed_indicator_snapshot(
+    instrument_token: int,
+    interval: str,
+    data: pd.DataFrame,
+    ema_period: int,
+    use_local_store: bool,
+    store_path: str | None,
+) -> None:
+    if data.empty:
+        return
+
+    indicators = data.copy()
+    indicators["ema_10"] = indicators["close"].ewm(span=10, adjust=False).mean()
+    indicators["ema_20"] = indicators["close"].ewm(span=20, adjust=False).mean()
+    indicators["ema_50"] = indicators["close"].ewm(span=50, adjust=False).mean()
+    indicators["ema_200"] = indicators["close"].ewm(span=ema_period, adjust=False).mean()
+    indicators["rsi_14"] = _rsi(indicators["close"], 14)
+    latest = indicators.iloc[-1]
+
+    save_technical_indicator_to_store(
+        instrument_token,
+        interval,
+        _candle_date(latest["date"]) or _completed_history_date(),
+        float(latest["ema_10"]),
+        float(latest["ema_20"]),
+        float(latest["ema_50"]),
+        float(latest["ema_200"]),
+        float(latest["rsi_14"]),
+        float(indicators["high"].tail(252).max()),
+        float(indicators["high"].max()),
+        use_local_store=use_local_store,
+        store_path=store_path,
+    )
+
+
+def _price_change_pct(reference_price: float, price: float) -> float:
+    if reference_price == 0:
+        return 0.0
+    return ((price - reference_price) / reference_price) * 100
+
+
+def _completed_history_date() -> date:
+    return date.today() - timedelta(days=1)
+
+
+def _latest_close_reference(candles: list[dict[str, Any]]) -> float:
+    if not candles:
+        return 0.0
+
+    latest_date = _candle_date(candles[-1].get("date"))
+    if latest_date == date.today() and len(candles) > 1:
+        return float(candles[-2].get("close", 0))
+
+    return float(candles[-1].get("close", 0))
+
+
+def _candle_date(value: Any) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, pd.Timestamp):
+        return value.date()
+    if hasattr(value, "date"):
+        return value.date()
+    try:
+        return pd.Timestamp(value).date()
+    except Exception:
+        return None
 
 
 def _rsi(close: pd.Series, period: int) -> pd.Series:

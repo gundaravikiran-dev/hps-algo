@@ -11,10 +11,17 @@ class EmaFriendlyKite(FakeKite):
     def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
         if instrument_token == 1:
             return [
-                {"close": 300 + (index * 0.05), "high": 300 + (index * 0.05)}
+                {
+                    "close": 300 + (index * 0.05),
+                    "high": 300 + (index * 0.05),
+                    "volume": 1_500_000,
+                }
                 for index in range(230)
             ]
-        return [{"close": 300 - index, "high": 300 - index} for index in range(230)]
+        return [
+            {"close": 300 - index, "high": 300 - index, "volume": 1_500_000}
+            for index in range(230)
+        ]
 
     def ltp(self, instruments: list[str]) -> dict:
         return {
@@ -61,6 +68,21 @@ def test_ema_algo_returns_empty_when_price_is_below_ema_200() -> None:
     assert results == []
 
 
+def test_ema_algo_rejects_latest_volume_at_or_below_one_million() -> None:
+    class LowVolumeKite(EmaFriendlyKite):
+        def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
+            candles = super().historical_data(instrument_token, from_date, to_date, interval)
+            candles[-1]["volume"] = 1_000_000
+            return candles
+
+    results = find_kite_stocks_price_above_200_ema(
+        KiteDataConfig(max_symbols=2, pause_seconds=0),
+        kite=LowVolumeKite(),
+    )
+
+    assert results == []
+
+
 def test_ema_10_20_distance_allows_equal_values() -> None:
     assert _ema_10_above_20_within_distance(150, 150) is True
     assert _ema_10_above_20_within_distance(150.1, 150) is True
@@ -73,7 +95,7 @@ def test_ema_algo_returns_empty_when_ema_10_is_too_far_above_ema_20() -> None:
         def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
             if instrument_token == 1:
                 return [
-                    {"close": 100 + index, "high": 100 + index}
+                    {"close": 100 + index, "high": 100 + index, "volume": 1_500_000}
                     for index in range(230)
                 ]
             return super().historical_data(instrument_token, from_date, to_date, interval)
@@ -111,7 +133,10 @@ def test_ema_algo_returns_empty_when_price_is_far_above_any_short_ema() -> None:
 def test_ema_algo_returns_empty_when_short_emas_are_below_ema_200() -> None:
     class ShortEmasBelowKite(FakeKite):
         def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
-            return [{"close": 300 - index, "high": 300 - index} for index in range(230)]
+            return [
+                {"close": 300 - index, "high": 300 - index, "volume": 1_500_000}
+                for index in range(230)
+            ]
 
         def ltp(self, instruments: list[str]) -> dict:
             return {

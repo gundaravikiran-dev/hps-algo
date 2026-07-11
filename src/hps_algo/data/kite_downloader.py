@@ -10,14 +10,20 @@ import pandas as pd
 import yaml
 
 from hps_algo.kite_client import build_kite
+from hps_algo.data.store import MarketDataStore, default_market_data_path
+
+
+KITE_MAX_HISTORICAL_DAYS = 2000
 
 
 @dataclass(frozen=True)
 class KiteDataConfig:
     exchange: str = "NSE"
     interval: str = "day"
-    history_days: int = 420
+    history_days: int = 3650
     output_path: str = "data/nse_daily_candles.csv"
+    store_path: str | None = None
+    use_local_store: bool = False
     max_symbols: int | None = 50
     pause_seconds: float = 0.35
     exclude_tradingsymbol_suffixes: tuple[str, ...] = (
@@ -105,6 +111,91 @@ def filter_nse_equity_instruments(
     return sorted(selected, key=lambda item: str(item["tradingsymbol"]))
 
 
+def fetch_kite_historical_data(
+    kite: KiteHistoryClient,
+    instrument_token: int,
+    from_date: date,
+    to_date: date,
+    interval: str,
+    max_days: int = KITE_MAX_HISTORICAL_DAYS,
+) -> list[dict[str, Any]]:
+    candles: list[dict[str, Any]] = []
+    chunk_from = from_date
+
+    while chunk_from <= to_date:
+        chunk_to = min(chunk_from + timedelta(days=max_days - 1), to_date)
+        candles.extend(kite.historical_data(instrument_token, chunk_from, chunk_to, interval))
+        chunk_from = chunk_to + timedelta(days=1)
+
+    return candles
+
+
+def fetch_kite_historical_data_cached(
+    kite: KiteHistoryClient,
+    instrument_token: int,
+    from_date: date,
+    to_date: date,
+    interval: str,
+    use_local_store: bool = True,
+    store_path: str | Path | None = None,
+) -> list[dict[str, Any]]:
+    if not use_local_store:
+        return fetch_kite_historical_data(kite, instrument_token, from_date, to_date, interval)
+
+    store = MarketDataStore(store_path or default_market_data_path())
+    if store.has_synced_range(instrument_token, interval, from_date, to_date):
+        return store.load_candles(instrument_token, interval, from_date, to_date)
+
+    candles = fetch_kite_historical_data(kite, instrument_token, from_date, to_date, interval)
+    store.save_candles(instrument_token, interval, candles)
+    store.mark_synced_range(instrument_token, interval, from_date, to_date)
+    return candles
+
+
+def save_kite_instruments_to_store(
+    instruments: list[dict[str, Any]],
+    use_local_store: bool = True,
+    store_path: str | Path | None = None,
+) -> None:
+    if not use_local_store:
+        return
+
+    store = MarketDataStore(store_path or default_market_data_path())
+    store.save_instruments(instruments)
+
+
+def save_technical_indicator_to_store(
+    instrument_token: int,
+    interval: str,
+    candle_date: date,
+    ema_10: float,
+    ema_20: float,
+    ema_50: float,
+    ema_200: float,
+    rsi_14: float,
+    high_52w: float,
+    all_time_high: float,
+    use_local_store: bool = True,
+    store_path: str | Path | None = None,
+) -> None:
+    if not use_local_store:
+        return
+
+    store = MarketDataStore(store_path or default_market_data_path())
+    store.save_technical_indicator(
+        instrument_token,
+        interval,
+        candle_date,
+        ema_10,
+        ema_20,
+        ema_50,
+        ema_200,
+        rsi_14,
+        high_52w,
+        all_time_high,
+    )
+
+
 def download_nse_daily_candles(
     config: KiteDataConfig,
     kite: KiteHistoryClient | None = None,
@@ -127,7 +218,7 @@ def download_nse_daily_candles(
         symbol = str(instrument["tradingsymbol"])
         token = int(instrument["instrument_token"])
         try:
-            candles = kite.historical_data(token, from_date, to_date, config.interval)
+            candles = fetch_kite_historical_data(kite, token, from_date, to_date, config.interval)
         except Exception as error:
             errors.append(f"{symbol}: {error}")
             continue

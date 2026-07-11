@@ -3,51 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>HPS-Algo</title>
+    <title>Momentum Algo</title>
     <style>
       [hidden] {
         display: none !important;
       }
 
-      body {
-        margin: 0;
-        min-height: 100vh;
-        background: #f3f6f8;
-        font-family:
-          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
-          sans-serif;
-      }
-
-      .login-view {
-        min-height: 100vh;
-        display: grid;
-        place-items: center;
-        align-content: center;
-        gap: 12px;
-        padding: 24px;
-      }
-
-      #primaryLoginButton {
-        min-height: 44px;
-        min-width: 180px;
-        border: 0;
-        border-radius: 6px;
-        padding: 0 22px;
-        background: #0f766e;
-        color: #ffffff;
-        cursor: pointer;
-        font: inherit;
-        font-weight: 800;
-      }
+      body { margin: 0; min-height: 100vh; }
     </style>
     <link rel="stylesheet" href="/static/styles.css?v={{ asset_version }}" />
   </head>
   <body>
     <main id="setupView" class="setup-view">
+      <div class="market-grid" aria-hidden="true"></div>
       <section class="setup-panel">
         <div>
           <p class="eyebrow">Kite Setup</p>
-          <h1>Connect HPS-Algo</h1>
+          <h1>Connect Momentum Algo</h1>
+          <p class="auth-subtitle">Save your Kite credentials locally, then continue to Zerodha login.</p>
         </div>
         <div class="form-grid">
           <label for="apiKeyInput">API Key</label>
@@ -70,6 +43,11 @@
     </main>
 
     <main id="loginView" class="login-view">
+      <div class="market-grid" aria-hidden="true"></div>
+      <section class="login-panel" aria-label="Momentum Algo login">
+        <p class="auth-kicker">Local NSE Scanner</p>
+        <h1>Momentum Algo</h1>
+        <p class="auth-subtitle">NSE momentum scanner</p>
       <div class="login-actions">
         <button
           id="primaryLoginButton"
@@ -77,7 +55,7 @@
           type="button"
           title="Login to Zerodha Kite"
         >
-          Login
+          Login with Zerodha Kite
         </button>
         <button
           id="quitLoginButton"
@@ -88,128 +66,83 @@
           Quit App
         </button>
       </div>
+        <p class="auth-footnote">Runs locally on your system</p>
       <p id="loginMessage" class="login-copy"></p>
+      </section>
     </main>
 
     <main id="appView" class="strategy-view" hidden>
+      <div class="market-grid" aria-hidden="true"></div>
       <header class="strategy-header">
-        <div>
-          <p class="eyebrow">HPS-Algo</p>
-          <h1>Strategy Page</h1>
+        <div class="brand-lockup">
+          <div class="brand-mark" aria-hidden="true">M</div>
+          <div>
+            <h1>Momentum Algo</h1>
+          </div>
         </div>
-        <div class="strategy-actions">
-          <button
-            id="strategyNameButton"
-            class="secondary-button"
-            data-action="run-hps"
-            type="button"
-          >
-            Strategy
-          </button>
-          <button
-            id="athAlgoButton"
-            class="secondary-button"
-            data-action="run-ath"
-            type="button"
-          >
-            ATH-Algo
-          </button>
-          <button
-            id="emaButton"
-            class="secondary-button"
-            data-action="run-ema"
-            type="button"
-          >
-            EMA
-          </button>
-          <button
-            id="emaPreCrossButton"
-            class="secondary-button"
-            data-action="run-ema-pre-cross"
-            type="button"
-          >
-            EMA_PRE_CROSS
-          </button>
-          <button
-            id="emaPreCross10Button"
-            class="secondary-button"
-            data-action="run-ema-pre-cross-10"
-            type="button"
-          >
-            EMA_PRE_CROSS_10
-          </button>
+        <nav class="top-nav" aria-label="Main menu">
+          <div class="nav-menu-group">
+            <a class="nav-link" href="/?app=1">Dashboard</a>
+            <div id="strategyMenu" class="strategy-menu">
+              <button class="nav-button" data-action="toggle-strategy-menu" type="button">Strategy</button>
+              <div class="strategy-dropdown">
+                <button data-action="run-hps" type="button">HPS-Algo</button>
+                <button data-action="run-ath" type="button">ATH-Algo</button>
+                <button data-action="run-ema" type="button">EMA</button>
+                <button data-action="run-ema-pre-cross" type="button">EMA_PRE_CROSS</button>
+                <button data-action="run-ema-pre-cross-10" type="button">EMA_PRE_CROSS_10</button>
+              </div>
+            </div>
+            <a class="nav-link" href="#results">Reports</a>
+          </div>
           <button
             id="quitStrategyButton"
-            class="secondary-button"
+            class="nav-button"
             data-action="quit-strategy"
             type="button"
           >
             Quit App
           </button>
-        </div>
+        </nav>
       </header>
       <section id="strategyContent" class="strategy-content"></section>
-      <section class="backtest-panel" aria-label="Backtest controls">
-        <div>
-          <h2>Backtest</h2>
-          <p class="message">Select a strategy and date to check historical matching stocks.</p>
-        </div>
-        <div class="backtest-controls">
-          <label for="backtestStrategyInput">Strategy</label>
-          <select id="backtestStrategyInput">
-            <option value="hps-algo">HPS-Algo</option>
-            <option value="ath-algo">ATH-Algo</option>
-            <option value="ema">EMA</option>
-            <option value="ema-pre-cross">EMA_PRE_CROSS</option>
-            <option value="ema-pre-cross-10">EMA_PRE_CROSS_10</option>
-          </select>
-          <label for="backtestDateInput">Date</label>
-          <input id="backtestDateInput" type="date" />
-          <button id="runBacktestButton" data-action="run-backtest" type="button">Run Backtest</button>
-        </div>
-      </section>
-      <section class="result-panel">
+      <section id="results" class="result-panel">
         <div class="result-header">
-          <h2>Stocks Above 200 EMA</h2>
+          <div>
+            <h2 id="resultTitle">SELECT STRATEGY</h2>
+          </div>
           <div class="result-actions">
-            <a class="export-button" href="/api/strategy/hps-algo/export.csv">CSV</a>
-            <a class="export-button" href="/api/strategy/hps-algo/export.xls">Excel</a>
-            <button
-              id="exportTxtButton"
-              class="export-button"
-              data-action="export-txt"
-              type="button"
-            >
-              TXT
+            <button id="resetSortButton" class="export-button" data-action="reset-sort" type="button">
+              Reset
             </button>
+            <div id="exportMenu" class="export-menu is-disabled">
+              <button id="exportMenuButton" class="export-button export-menu-button" type="button" disabled>
+                Export
+              </button>
+              <div class="export-dropdown">
+                <a id="txtExportLink" href="#" aria-disabled="true" tabindex="-1">TXT</a>
+                <a id="excelExportLink" href="#" aria-disabled="true" tabindex="-1">Excel</a>
+              </div>
+            </div>
             <strong id="resultCount">-</strong>
           </div>
         </div>
-        <p id="strategyMessage" class="message">Click HPS-Algo to run the strategy.</p>
+        <p id="strategyMessage" class="message"></p>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Stock</th>
-                <th>LTP</th>
-                <th>EMA 10</th>
-                <th>EMA 20</th>
-                <th>EMA 50</th>
-                <th>EMA 200</th>
-                <th>RSI 14</th>
-                <th>Condition</th>
-                <th>Entry Zone</th>
-                <th>% Above EMA10</th>
-                <th>% Above EMA20</th>
-                <th>% Above EMA50</th>
-                <th>High Ref</th>
-                <th>High</th>
-                <th>% Below High</th>
+                <th><button class="sort-button" data-sort="index" type="button">S.No</button></th>
+                <th><button class="sort-button" data-sort="stock_name" type="button">Stock Name</button></th>
+                <th><button class="sort-button" data-sort="symbol" type="button">Stock Symbol</button></th>
+                <th><button class="sort-button" data-sort="ltp" type="button">LTP</button></th>
+                <th><button class="sort-button" data-sort="volume" type="button">Volume</button></th>
+                <th><button class="sort-button" data-sort="latest_candle_pct" type="button">% Change</button></th>
               </tr>
             </thead>
             <tbody id="strategyRows">
               <tr>
-                <td colspan="15">No results yet.</td>
+                <td colspan="6">No results yet.</td>
               </tr>
             </tbody>
           </table>

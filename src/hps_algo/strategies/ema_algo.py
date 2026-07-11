@@ -5,9 +5,25 @@ from typing import Any
 
 import pandas as pd
 
-from hps_algo.data import KiteDataConfig, filter_nse_equity_instruments
+from hps_algo.data import (
+    KiteDataConfig,
+    fetch_kite_historical_data_cached,
+    filter_nse_equity_instruments,
+    save_kite_instruments_to_store,
+)
 from hps_algo.kite_client import build_kite
-from hps_algo.strategies.hps_algo import AboveEmaResult, KiteStrategyClient, _pct_above
+from hps_algo.strategies.hps_algo import (
+    AboveEmaResult,
+    KiteStrategyClient,
+    MIN_LATEST_CANDLE_VOLUME,
+    _completed_history_date,
+    _historical_candle_frame,
+    _latest_close_reference,
+    _pct_above,
+    _price_change_pct,
+    _save_completed_indicator_snapshot,
+    _with_live_close,
+)
 
 
 class EmaStrategy:
@@ -31,30 +47,50 @@ def find_kite_stocks_price_above_200_ema(
     selected = filter_nse_equity_instruments(instruments, config)
     if config.max_symbols:
         selected = selected[: config.max_symbols]
+    save_kite_instruments_to_store(
+        selected,
+        use_local_store=config.use_local_store,
+        store_path=config.store_path,
+    )
 
-    to_date = date.today()
+    to_date = _completed_history_date()
     from_date = to_date - timedelta(days=max(config.history_days, ema_period * 6))
-    ema_by_symbol: dict[str, dict[str, float]] = {}
+    ema_by_symbol: dict[str, dict[str, float | int | str | pd.DataFrame]] = {}
 
     for instrument in selected:
         symbol = str(instrument["tradingsymbol"])
+        stock_name = str(instrument.get("name") or symbol)
         token = int(instrument["instrument_token"])
-        candles = kite.historical_data(token, from_date, to_date, config.interval)
+        candles = fetch_kite_historical_data_cached(
+            kite,
+            token,
+            from_date,
+            to_date,
+            config.interval,
+            use_local_store=config.use_local_store,
+            store_path=config.store_path,
+        )
         closes = [float(candle["close"]) for candle in candles]
         if len(closes) < ema_period:
             continue
 
-        data = pd.DataFrame({"close": closes})
-        data["ema_10"] = data["close"].ewm(span=10, adjust=False).mean()
-        data["ema_20"] = data["close"].ewm(span=20, adjust=False).mean()
-        data["ema_50"] = data["close"].ewm(span=50, adjust=False).mean()
-        data["ema_200"] = data["close"].ewm(span=ema_period, adjust=False).mean()
-        latest = data.iloc[-1]
+        history = _historical_candle_frame(candles, from_date)
+        _save_completed_indicator_snapshot(
+            token,
+            config.interval,
+            history,
+            ema_period,
+            use_local_store=config.use_local_store,
+            store_path=config.store_path,
+        )
+        volume = int(candles[-1].get("volume", 0))
+        if volume <= MIN_LATEST_CANDLE_VOLUME:
+            continue
         ema_by_symbol[symbol] = {
-            "ema_10": float(latest["ema_10"]),
-            "ema_20": float(latest["ema_20"]),
-            "ema_50": float(latest["ema_50"]),
-            "ema_200": float(latest["ema_200"]),
+            "stock_name": stock_name,
+            "volume": volume,
+            "latest_close": _latest_close_reference(candles),
+            "history": history,
         }
 
     if not ema_by_symbol:
@@ -73,10 +109,16 @@ def find_kite_stocks_price_above_200_ema(
             continue
 
         ltp = float(ltp_payload["last_price"])
-        ema_10 = ema_values["ema_10"]
-        ema_20 = ema_values["ema_20"]
-        ema_50 = ema_values["ema_50"]
-        ema_200 = ema_values["ema_200"]
+        live_data = _with_live_close(pd.DataFrame(ema_values["history"]), ltp)
+        live_data["ema_10"] = live_data["close"].ewm(span=10, adjust=False).mean()
+        live_data["ema_20"] = live_data["close"].ewm(span=20, adjust=False).mean()
+        live_data["ema_50"] = live_data["close"].ewm(span=50, adjust=False).mean()
+        live_data["ema_200"] = live_data["close"].ewm(span=ema_period, adjust=False).mean()
+        latest = live_data.iloc[-1]
+        ema_10 = float(latest["ema_10"])
+        ema_20 = float(latest["ema_20"])
+        ema_50 = float(latest["ema_50"])
+        ema_200 = float(latest["ema_200"])
         if ltp <= ema_200 or ema_10 <= ema_200 or ema_20 <= ema_200 or ema_50 <= ema_200:
             continue
         if not _ema_10_above_20_within_distance(ema_10, ema_20):
@@ -96,7 +138,10 @@ def find_kite_stocks_price_above_200_ema(
         results.append(
             AboveEmaResult(
                 symbol=symbol,
+                stock_name=str(ema_values["stock_name"]),
                 ltp=round(ltp, 2),
+                volume=int(ema_values["volume"]),
+                latest_candle_pct=round(_price_change_pct(float(ema_values["latest_close"]), ltp), 2),
                 ema_10=round(ema_10, 2),
                 ema_20=round(ema_20, 2),
                 ema_50=round(ema_50, 2),

@@ -4,7 +4,7 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
-from dotenv import load_dotenv
+from dotenv import dotenv_values, load_dotenv
 from kiteconnect import KiteConnect
 
 from hps_algo.runtime_paths import credentials_env_path
@@ -72,6 +72,15 @@ def save_credentials(api_key: str, api_secret: str, env_path: str | Path = ".env
     )
     os.environ["KITE_API_KEY"] = cleaned_api_key
     os.environ["KITE_API_SECRET"] = cleaned_api_secret
+
+
+def saved_credentials(env_path: str | Path | None = None) -> dict[str, str]:
+    path = Path(env_path) if env_path is not None else credentials_env_path()
+    values = dotenv_values(path) if path.exists() else {}
+    return {
+        "api_key": str(values.get("KITE_API_KEY", "") or "").strip(),
+        "api_secret": str(values.get("KITE_API_SECRET", "") or "").strip(),
+    }
 
 
 def credential_status() -> dict[str, bool]:

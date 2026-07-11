@@ -8,7 +8,7 @@ import pandas as pd
 
 from hps_algo.data import KiteDataConfig, filter_nse_equity_instruments
 from hps_algo.kite_client import build_kite
-from hps_algo.strategies.hps_algo import AboveEmaResult, KiteStrategyClient, _pct_above
+from hps_algo.strategies.hps_algo import AboveEmaResult, KiteStrategyClient, _pct_above, _price_change_pct
 
 
 @dataclass(frozen=True)
@@ -79,10 +79,11 @@ def _find_kite_stocks_for_ema_pre_cross(
 
     to_date = date.today()
     from_date = to_date - timedelta(days=max(config.history_days, ema_period * 6))
-    ema_by_symbol: dict[str, dict[str, float | Ema10CrossCondition]] = {}
+    ema_by_symbol: dict[str, dict[str, float | int | str | Ema10CrossCondition]] = {}
 
     for instrument in selected:
         symbol = str(instrument["tradingsymbol"])
+        stock_name = str(instrument.get("name") or symbol)
         token = int(instrument["instrument_token"])
         candles = kite.historical_data(token, from_date, to_date, config.interval)
         closes = [float(candle["close"]) for candle in candles]
@@ -126,6 +127,9 @@ def _find_kite_stocks_for_ema_pre_cross(
             )
 
         ema_by_symbol[symbol] = {
+            "stock_name": stock_name,
+            "volume": int(candles[-1].get("volume", 0)),
+            "latest_close": float(candles[-1].get("close", 0)),
             "ema_10": ema_10,
             "ema_20": ema_20,
             "ema_50": ema_50,
@@ -162,7 +166,10 @@ def _find_kite_stocks_for_ema_pre_cross(
         results.append(
             AboveEmaResult(
                 symbol=symbol,
+                stock_name=str(ema_values["stock_name"]),
                 ltp=round(ltp, 2),
+                volume=int(ema_values["volume"]),
+                latest_candle_pct=round(_price_change_pct(float(ema_values["latest_close"]), ltp), 2),
                 ema_10=round(ema_10, 2),
                 ema_20=round(ema_20, 2),
                 ema_50=round(ema_50, 2),

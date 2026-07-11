@@ -3,12 +3,13 @@ from __future__ import annotations
 import os
 import signal
 import threading
+from datetime import date
 from pathlib import Path
 from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, Response
+from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -24,6 +25,7 @@ from hps_algo.kite_client import (
     login_url,
     save_access_token,
     save_credentials,
+    saved_credentials,
 )
 from hps_algo.runtime_paths import config_path, credentials_env_path, state_root, ui_assets_dir
 from hps_algo.settings import load_config
@@ -32,7 +34,7 @@ from hps_algo.strategies.ema_algo import EmaStrategy
 from hps_algo.strategies.ema_pre_cross_algo import EmaPreCross10Strategy, EmaPreCrossStrategy
 from hps_algo.strategies.hps_algo import find_kite_stocks_ltp_above_200_ema
 
-ASSET_VERSION = "stock-txt-export-20260622-1"
+ASSET_VERSION = "momentum-export-menu-20260707-5"
 STATE_ROOT = state_root()
 CONFIG_PATH = config_path("strategy.yaml")
 DATA_CONFIG_PATH = config_path("data.yaml")
@@ -79,7 +81,7 @@ def kite_status() -> dict:
 
 @app.get("/api/app/status")
 def app_status() -> dict:
-    return {"app": "HPS-Algo", "status": "ready"}
+    return {"app": "Momentum Algo", "status": "ready"}
 
 
 @app.post("/api/app/shutdown")
@@ -91,6 +93,11 @@ def shutdown_app() -> dict:
 @app.get("/api/kite/credentials/status")
 def kite_credentials_status() -> dict:
     return credential_status()
+
+
+@app.get("/api/kite/credentials")
+def get_kite_credentials() -> dict:
+    return saved_credentials(credentials_env_path())
 
 
 @app.post("/api/kite/credentials")
@@ -111,8 +118,8 @@ def kite_login_url() -> dict:
         raise HTTPException(status_code=400, detail=str(error)) from error
 
 
-@app.get("/kite/callback", response_class=HTMLResponse)
-def kite_callback(request_token: str | None = None, status: str | None = None) -> str:
+@app.get("/kite/callback")
+def kite_callback(request_token: str | None = None, status: str | None = None) -> Response:
     if status and status.lower() != "success":
         return _callback_html("Kite login failed", f"Status: {status}")
 
@@ -125,7 +132,7 @@ def kite_callback(request_token: str | None = None, status: str | None = None) -
     except Exception as error:
         return _callback_html("Access token failed", str(error))
 
-    return _callback_html("Kite connected", "Access token saved. Continue to the strategy workspace.")
+    return RedirectResponse(url="/?app=1", status_code=303)
 
 
 @app.post("/api/kite/fetch-nse-data")
@@ -150,110 +157,46 @@ def fetch_nse_data(request: FetchNseDataRequest) -> dict:
 
 @app.post("/api/strategy/hps-algo/run")
 def run_hps_algo_strategy() -> dict:
-    data_config = load_kite_data_config(DATA_CONFIG_PATH)
-
-    try:
-        results = find_kite_stocks_ltp_above_200_ema(data_config)
-    except RuntimeError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    return {
-        "count": len(results),
-        "source": "Kite API: historical daily candles + LTP",
-        "results": [item.to_dict() for item in results],
-    }
+    return _run_strategy("hps-algo")
 
 
 @app.post("/api/strategy/ath-algo/run")
 def run_ath_algo_strategy() -> dict:
-    data_config = load_kite_data_config(DATA_CONFIG_PATH)
-    strategy = AthAlgoStrategy()
-    try:
-        results = strategy.run(data_config)
-    except RuntimeError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    return {
-        "count": len(results),
-        "source": "Kite API: HPS-Algo rules without ATH/52W distance filter",
-        "results": [item.to_dict() for item in results],
-    }
+    return _run_strategy("ath-algo")
 
 
 @app.post("/api/strategy/ema/run")
 def run_ema_strategy() -> dict:
-    data_config = load_kite_data_config(DATA_CONFIG_PATH)
-    strategy = EmaStrategy()
-    try:
-        results = strategy.run(data_config)
-    except RuntimeError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    return {
-        "count": len(results),
-        "source": "Kite API: daily LTP above EMA200",
-        "results": [item.to_dict() for item in results],
-    }
+    return _run_strategy("ema")
 
 
 @app.post("/api/strategy/ema-pre-cross/run")
 def run_ema_pre_cross_strategy() -> dict:
-    data_config = load_kite_data_config(DATA_CONFIG_PATH)
-    strategy = EmaPreCrossStrategy()
-    try:
-        results = strategy.run(data_config)
-    except RuntimeError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    return {
-        "count": len(results),
-        "source": "Kite API: EMA_PRE_CROSS daily price above EMA200",
-        "results": [item.to_dict() for item in results],
-    }
+    return _run_strategy("ema-pre-cross")
 
 
 @app.post("/api/strategy/ema-pre-cross-10/run")
 def run_ema_pre_cross_10_strategy() -> dict:
-    data_config = load_kite_data_config(DATA_CONFIG_PATH)
-    strategy = EmaPreCross10Strategy()
-    try:
-        results = strategy.run(data_config)
-    except RuntimeError as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-    except Exception as error:
-        raise HTTPException(status_code=400, detail=str(error)) from error
-
-    return {
-        "count": len(results),
-        "source": "Kite API: EMA_PRE_CROSS_10 daily price above EMA200 after previous 10+ EMA stack",
-        "results": [item.to_dict() for item in results],
-    }
+    return _run_strategy("ema-pre-cross-10")
 
 
-@app.get("/api/strategy/hps-algo/export.csv")
-def export_hps_algo_csv() -> Response:
-    payload = run_hps_algo_strategy()
-    csv_text = _strategy_results_to_csv(payload["results"])
+@app.get("/api/strategy/{strategy_id}/export.txt")
+def export_strategy_txt(strategy_id: str) -> Response:
+    payload = _run_strategy(strategy_id)
+    text = _strategy_results_to_txt(payload["results"])
+    filename = quote(_export_filename(strategy_id, "txt"))
     return Response(
-        content=csv_text,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=hps-algo-results.csv"},
+        content=text,
+        media_type="text/plain",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
 
 
-@app.get("/api/strategy/hps-algo/export.xls")
-def export_hps_algo_excel() -> Response:
-    payload = run_hps_algo_strategy()
+@app.get("/api/strategy/{strategy_id}/export.xls")
+def export_strategy_excel(strategy_id: str) -> Response:
+    payload = _run_strategy(strategy_id)
     csv_text = _strategy_results_to_csv(payload["results"])
-    filename = quote("hps-algo-results.xls")
+    filename = quote(_export_filename(strategy_id, "xls"))
     return Response(
         content=csv_text,
         media_type="application/vnd.ms-excel",
@@ -261,11 +204,49 @@ def export_hps_algo_excel() -> Response:
     )
 
 
+def _run_strategy(strategy_id: str) -> dict:
+    data_config = load_kite_data_config(DATA_CONFIG_PATH)
+    try:
+        if strategy_id == "hps-algo":
+            results = find_kite_stocks_ltp_above_200_ema(data_config)
+            source = "Kite API: historical daily candles + LTP"
+        elif strategy_id == "ath-algo":
+            results = AthAlgoStrategy().run(data_config)
+            source = "Kite API: HPS-Algo rules without ATH/52W distance filter"
+        elif strategy_id == "ema":
+            results = EmaStrategy().run(data_config)
+            source = "Kite API: daily LTP above EMA200"
+        elif strategy_id == "ema-pre-cross":
+            results = EmaPreCrossStrategy().run(data_config)
+            source = "Kite API: EMA_PRE_CROSS daily price above EMA200"
+        elif strategy_id == "ema-pre-cross-10":
+            results = EmaPreCross10Strategy().run(data_config)
+            source = "Kite API: EMA_PRE_CROSS_10 daily price above EMA200 after previous 10+ EMA stack"
+        else:
+            raise HTTPException(status_code=404, detail="Unknown strategy.")
+    except HTTPException:
+        raise
+    except RuntimeError as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    except Exception as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+
+    return {
+        "count": len(results),
+        "source": source,
+        "results": [item.to_dict() for item in results],
+    }
+
+
 def _resolve_project_path(path: str) -> Path:
     resolved = Path(path).expanduser()
     if not resolved.is_absolute():
         resolved = STATE_ROOT / resolved
     return resolved
+
+
+def _export_filename(strategy_id: str, extension: str) -> str:
+    return f"{strategy_id}_{date.today().isoformat()}.{extension}"
 
 
 def _strategy_results_to_csv(results: list[dict]) -> str:
@@ -290,6 +271,11 @@ def _strategy_results_to_csv(results: list[dict]) -> str:
     for item in results:
         lines.append(",".join(str(item.get(column, "")) for column in columns))
     return "\n".join(lines) + "\n"
+
+
+def _strategy_results_to_txt(results: list[dict]) -> str:
+    symbols = [str(item.get("symbol", "")).strip() for item in results]
+    return "\n".join(symbol for symbol in symbols if symbol) + "\n"
 
 
 def _callback_html(title: str, message: str) -> str:
@@ -335,7 +321,7 @@ def _callback_html(title: str, message: str) -> str:
         <main>
           <h1>{title}</h1>
           <p>{message}</p>
-          <a href="/?app=1">Back to HPS-Algo</a>
+          <a href="/?app=1">Back to Momentum Algo</a>
         </main>
       </body>
     </html>
