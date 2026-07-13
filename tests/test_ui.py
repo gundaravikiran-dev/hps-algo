@@ -22,8 +22,8 @@ def test_ui_index_uses_versioned_static_assets() -> None:
     assert "Momentum Algo" in response.text
     assert "Login with Zerodha Kite" in response.text
     assert 'data-action="run-ema"' in response.text
-    assert 'data-action="run-ema-pre-cross"' in response.text
-    assert 'data-action="run-ema-pre-cross-10"' in response.text
+    assert 'data-action="run-ema-pre-cross"' not in response.text
+    assert 'data-action="run-ema-pre-cross-10"' not in response.text
     assert 'class="strategy-dropdown"' in response.text
     assert "Dashboard" in response.text
     assert "Reports" in response.text
@@ -182,20 +182,6 @@ def test_ui_ath_algo_endpoint() -> None:
 def test_ui_ema_algo_endpoint() -> None:
     client = TestClient(app)
     response = client.post("/api/strategy/ema/run")
-
-    assert response.status_code in {200, 400}
-
-
-def test_ui_ema_pre_cross_algo_endpoint() -> None:
-    client = TestClient(app)
-    response = client.post("/api/strategy/ema-pre-cross/run")
-
-    assert response.status_code in {200, 400}
-
-
-def test_ui_ema_pre_cross_10_algo_endpoint() -> None:
-    client = TestClient(app)
-    response = client.post("/api/strategy/ema-pre-cross-10/run")
 
     assert response.status_code in {200, 400}
 

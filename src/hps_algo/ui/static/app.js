@@ -51,22 +51,6 @@ const strategies = {
     runningMessage: "Running EMA scanner...",
     errorMessage: "Unable to run EMA.",
   },
-  "run-ema-pre-cross": {
-    title: "EMA_PRE_CROSS",
-    endpoint: "/api/strategy/ema-pre-cross/run",
-    txtExport: "/api/strategy/ema-pre-cross/export.txt",
-    excelExport: "/api/strategy/ema-pre-cross/export.xls",
-    runningMessage: "Running EMA_PRE_CROSS scanner...",
-    errorMessage: "Unable to run EMA_PRE_CROSS.",
-  },
-  "run-ema-pre-cross-10": {
-    title: "EMA_PRE_CROSS_10",
-    endpoint: "/api/strategy/ema-pre-cross-10/run",
-    txtExport: "/api/strategy/ema-pre-cross-10/export.txt",
-    excelExport: "/api/strategy/ema-pre-cross-10/export.xls",
-    runningMessage: "Running EMA_PRE_CROSS_10 scanner...",
-    errorMessage: "Unable to run EMA_PRE_CROSS_10.",
-  },
 };
 
 async function loadApp() {

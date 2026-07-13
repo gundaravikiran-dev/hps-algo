@@ -31,7 +31,6 @@ from hps_algo.runtime_paths import config_path, credentials_env_path, state_root
 from hps_algo.settings import load_config
 from hps_algo.strategies.ath_algo import AthAlgoStrategy
 from hps_algo.strategies.ema_algo import EmaStrategy
-from hps_algo.strategies.ema_pre_cross_algo import EmaPreCross10Strategy, EmaPreCrossStrategy
 from hps_algo.strategies.hps_algo import find_kite_stocks_ltp_above_200_ema
 
 ASSET_VERSION = "momentum-export-menu-20260707-5"
@@ -170,16 +169,6 @@ def run_ema_strategy() -> dict:
     return _run_strategy("ema")
 
 
-@app.post("/api/strategy/ema-pre-cross/run")
-def run_ema_pre_cross_strategy() -> dict:
-    return _run_strategy("ema-pre-cross")
-
-
-@app.post("/api/strategy/ema-pre-cross-10/run")
-def run_ema_pre_cross_10_strategy() -> dict:
-    return _run_strategy("ema-pre-cross-10")
-
-
 @app.get("/api/strategy/{strategy_id}/export.txt")
 def export_strategy_txt(strategy_id: str) -> Response:
     payload = _run_strategy(strategy_id)
@@ -216,12 +205,6 @@ def _run_strategy(strategy_id: str) -> dict:
         elif strategy_id == "ema":
             results = EmaStrategy().run(data_config)
             source = "Kite API: daily LTP above EMA200"
-        elif strategy_id == "ema-pre-cross":
-            results = EmaPreCrossStrategy().run(data_config)
-            source = "Kite API: EMA_PRE_CROSS daily price above EMA200"
-        elif strategy_id == "ema-pre-cross-10":
-            results = EmaPreCross10Strategy().run(data_config)
-            source = "Kite API: EMA_PRE_CROSS_10 daily price above EMA200 after previous 10+ EMA stack"
         else:
             raise HTTPException(status_code=404, detail="Unknown strategy.")
     except HTTPException:
