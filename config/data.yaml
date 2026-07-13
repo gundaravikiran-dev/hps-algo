@@ -1,8 +1,10 @@
 kite_data:
   exchange: NSE
   interval: day
-  history_days: 1200
+  history_days: 3650
   output_path: data/nse_daily_candles.csv
+  use_local_store: true
+  store_path:
   max_symbols: 3000
   pause_seconds: 0.35
   exclude_tradingsymbol_suffixes:

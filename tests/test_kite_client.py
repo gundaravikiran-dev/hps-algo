@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from hps_algo.kite_client import save_access_token, save_credentials
+from hps_algo.kite_client import save_access_token, save_credentials, saved_credentials
 
 
 def test_save_credentials_creates_env_values(tmp_path: Path) -> None:
@@ -25,6 +25,19 @@ def test_save_credentials_preserves_other_env_values(tmp_path: Path) -> None:
         "KITE_API_KEY=new_key\n"
         "KITE_API_SECRET=new_secret\n"
     )
+
+
+def test_saved_credentials_reads_existing_env_values(tmp_path: Path) -> None:
+    env_path = tmp_path / ".env"
+    env_path.write_text(
+        "KITE_API_KEY=test_key\nKITE_API_SECRET=test_secret\n",
+        encoding="utf-8",
+    )
+
+    assert saved_credentials(env_path) == {
+        "api_key": "test_key",
+        "api_secret": "test_secret",
+    }
 
 
 def test_save_access_token_updates_existing_env_value(tmp_path: Path) -> None:
