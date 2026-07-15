@@ -19,7 +19,6 @@ from hps_algo.kite_client import build_kite
 
 REQUIRED_COLUMNS = ("symbol", "date", "open", "high", "low", "close", "volume")
 RSI_THRESHOLD = 60.0
-MIN_LATEST_CANDLE_VOLUME = 1_000_000
 
 
 @dataclass(frozen=True)
@@ -99,7 +98,6 @@ def find_stocks_above_200_ema(path: str | Path, ema_period: int = 200) -> list[A
             close > ema_200
             and ema_10 > ema_200
             and ema_20 > ema_200
-            and volume > MIN_LATEST_CANDLE_VOLUME
             and rsi_14 > RSI_THRESHOLD
             and condition
             and entry_zone
@@ -179,8 +177,6 @@ def find_kite_stocks_ltp_above_200_ema(
             store_path=config.store_path,
         )
         volume = int(candles[-1].get("volume", 0))
-        if volume <= MIN_LATEST_CANDLE_VOLUME:
-            continue
         history_by_symbol[symbol] = (
             stock_name,
             volume,
