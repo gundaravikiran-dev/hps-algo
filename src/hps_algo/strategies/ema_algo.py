@@ -15,7 +15,6 @@ from hps_algo.kite_client import build_kite
 from hps_algo.strategies.hps_algo import (
     AboveEmaResult,
     KiteStrategyClient,
-    MIN_LATEST_CANDLE_VOLUME,
     _completed_history_date,
     _historical_candle_frame,
     _latest_close_reference,
@@ -84,8 +83,6 @@ def find_kite_stocks_price_above_200_ema(
             store_path=config.store_path,
         )
         volume = int(candles[-1].get("volume", 0))
-        if volume <= MIN_LATEST_CANDLE_VOLUME:
-            continue
         ema_by_symbol[symbol] = {
             "stock_name": stock_name,
             "volume": volume,

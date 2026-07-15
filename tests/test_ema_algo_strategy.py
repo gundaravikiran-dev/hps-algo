@@ -68,21 +68,6 @@ def test_ema_algo_returns_empty_when_price_is_below_ema_200() -> None:
     assert results == []
 
 
-def test_ema_algo_rejects_latest_volume_at_or_below_one_million() -> None:
-    class LowVolumeKite(EmaFriendlyKite):
-        def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
-            candles = super().historical_data(instrument_token, from_date, to_date, interval)
-            candles[-1]["volume"] = 1_000_000
-            return candles
-
-    results = find_kite_stocks_price_above_200_ema(
-        KiteDataConfig(max_symbols=2, pause_seconds=0),
-        kite=LowVolumeKite(),
-    )
-
-    assert results == []
-
-
 def test_ema_10_20_distance_allows_equal_values() -> None:
     assert _ema_10_above_20_within_distance(150, 150) is True
     assert _ema_10_above_20_within_distance(150.1, 150) is True

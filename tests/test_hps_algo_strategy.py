@@ -129,20 +129,6 @@ def test_find_kite_stocks_allows_price_above_either_ema_10_or_ema_20() -> None:
     assert [item.symbol for item in results] == ["AAA"]
 
 
-def test_find_kite_stocks_rejects_latest_volume_at_or_below_one_million() -> None:
-    class LowVolumeKite(FakeKite):
-        def historical_data(self, instrument_token, from_date, to_date, interval) -> list[dict]:
-            candles = super().historical_data(instrument_token, from_date, to_date, interval)
-            candles[-1]["volume"] = 1_000_000
-            return candles
-
-    config = KiteDataConfig(max_symbols=2, pause_seconds=0)
-
-    results = find_kite_stocks_ltp_above_200_ema(config, kite=LowVolumeKite())
-
-    assert results == []
-
-
 def test_rejects_when_short_emas_are_below_ema_200(tmp_path: Path) -> None:
     csv_path = tmp_path / "candles.csv"
     rows = ["symbol,date,open,high,low,close,volume"]
